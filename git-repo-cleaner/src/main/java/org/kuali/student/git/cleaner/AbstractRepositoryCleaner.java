@@ -14,20 +14,6 @@
  */
 package org.kuali.student.git.cleaner;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import org.apache.commons.io.FileUtils;
 import org.eclipse.jgit.errors.CorruptObjectException;
 import org.eclipse.jgit.errors.IncorrectObjectTypeException;
@@ -56,6 +42,19 @@ import org.kuali.student.git.model.tree.utils.GitTreeProcessor;
 import org.kuali.student.git.utils.ExternalGitUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * @author ocleirig
@@ -307,28 +306,7 @@ public abstract class AbstractRepositoryCleaner implements RepositoryCleaner {
 			/*
 			 * Process in reverse order from old to new.
 			 */
-			CommitBuilder builder = new CommitBuilder();
-
-			builder.setAuthor(commit.getAuthorIdent());
-			builder.setMessage(commit.getFullMessage());
-
-			builder.setCommitter(commit.getCommitterIdent());
-			
-			if (tree.isTreeDirty()) {
-				
-				ObjectId newTreeId = tree.buildTree(inserter);
-				
-				builder.setTreeId(newTreeId);
-			}
-			else {
-				builder.setTreeId(commit.getTree().getId());
-			}
-			
-			builder.setEncoding("UTF-8");
-
-			Set<ObjectId> newParents = processParents(commit);
-
-			builder.setParentIds(new ArrayList<>(newParents));
+			CommitBuilder builder = createCommitBuilder(commit, tree);
 
 			ObjectId newCommitId = inserter.insert(builder);
 			
@@ -451,8 +429,36 @@ public abstract class AbstractRepositoryCleaner implements RepositoryCleaner {
 
 	}
 
+    protected CommitBuilder createCommitBuilder(RevCommit commit, GitTreeData tree) throws IOException {
 
-	/**
+        CommitBuilder builder = new CommitBuilder();
+
+        builder.setAuthor(commit.getAuthorIdent());
+        builder.setMessage(commit.getFullMessage());
+
+        builder.setCommitter(commit.getCommitterIdent());
+
+        if (tree.isTreeDirty()) {
+
+            ObjectId newTreeId = tree.buildTree(inserter);
+
+            builder.setTreeId(newTreeId);
+        }
+        else {
+            builder.setTreeId(commit.getTree().getId());
+        }
+
+        builder.setEncoding("UTF-8");
+
+        Set<ObjectId> newParents = processParents(commit);
+
+        builder.setParentIds(new ArrayList<>(newParents));
+
+        return builder;
+    }
+
+
+    /**
 	 * Provides an extension point to alert that the commit should be recreated based on the fact that a parent has changed.
 	 * 
 	 * @param commit
