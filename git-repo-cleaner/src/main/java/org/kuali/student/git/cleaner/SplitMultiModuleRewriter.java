@@ -41,9 +41,11 @@ public class SplitMultiModuleRewriter extends org.kuali.student.git.cleaner.Abst
 			.getLogger(SplitMultiModuleRewriter.class);
 
 
-	private java.util.Map<ObjectId, String> blobIdToReplacementContentMap = new java.util.HashMap<>();
+	private java.util.Map<ObjectId, SetObjectId> blobIdToReplacementContentMap = new java.util.HashMap<>();
+
     private String targetPath;
 
+    private ObjectId rewrittenBranchHead = null;
 
     /**
 	 *
@@ -81,12 +83,22 @@ public class SplitMultiModuleRewriter extends org.kuali.student.git.cleaner.Abst
 
     @Override
     protected boolean processCommitTree(org.eclipse.jgit.revwalk.RevCommit commit, org.kuali.student.git.model.tree.GitTreeData tree) throws org.eclipse.jgit.errors.MissingObjectException, org.eclipse.jgit.errors.IncorrectObjectTypeException, org.eclipse.jgit.errors.CorruptObjectException, java.io.IOException {
-        ObjectId targetTree = tree.find(getRepo(), targetPath);
 
-        if (targetTree != null)
-            return true;
-        else
-            return false; // might still be processed if the parent was rewritten.
+        if (super.commitToBranchMap.containsKey(commit.getId())) {
+            // we are on a tag so don't do anything
+            return false;
+        }
+        else {
+
+            ObjectId targetTree = tree.find(getRepo(), targetPath);
+
+            if (targetTree != null)
+                return true;
+            else {
+                // collapse this commit.
+            }
+
+        }
     }
 
     @Override
@@ -129,9 +141,14 @@ public class SplitMultiModuleRewriter extends org.kuali.student.git.cleaner.Abst
         return builder;
     }
 
+    @Override
+    protected void onNewCommit(org.eclipse.jgit.revwalk.RevCommit commit, org.eclipse.jgit.lib.ObjectId newCommitId) {
+        this.rewrittenBranchHead = newCommitId;
+    }
+
     /* (non-Javadoc)
-             * @see org.kuali.student.git.cleaner.AbstractRepositoryCleaner#getFileNameSuffix()
-             */
+                 * @see org.kuali.student.git.cleaner.AbstractRepositoryCleaner#getFileNameSuffix()
+                 */
 	@Override
 	protected String getFileNameSuffix() {
 		return "split-multi-module";
