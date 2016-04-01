@@ -35,6 +35,7 @@ import org.eclipse.jgit.transport.ReceiveCommand.Type;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
+import org.kuali.student.git.cleaner.model.SkipOverCommitException;
 import org.kuali.student.git.model.graft.GitGraft;
 import org.kuali.student.git.model.ref.utils.GitRefUtils;
 import org.kuali.student.git.model.tree.GitTreeData;
@@ -51,6 +52,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -296,11 +298,15 @@ public abstract class AbstractRepositoryCleaner implements RepositoryCleaner {
 			GitTreeData tree = treeProcessor
 					.extractExistingTreeDataFromCommit(commit.getId());
 
-			boolean recreate = processCommitTree(commit, tree);
+			try {
+				boolean recreate = processCommitTree(commit, tree);
 
-			if (!recreateCommitByTranslatedParent && !recreate) {
-				processedCommits.add(commit.getId());
-				continue;
+				if (!recreateCommitByTranslatedParent && !recreate) {
+					processedCommits.add(commit.getId());
+					continue;
+				}
+			} catch (SkipOverCommitException e) {
+				onSkipOverCommit(commit, tree);
 			}
 			
 			/*
@@ -429,7 +435,11 @@ public abstract class AbstractRepositoryCleaner implements RepositoryCleaner {
 
 	}
 
-    protected CommitBuilder createCommitBuilder(RevCommit commit, GitTreeData tree) throws IOException {
+	protected void onSkipOverCommit(RevCommit commit, GitTreeData tree) {
+		
+	}
+
+	protected CommitBuilder createCommitBuilder(RevCommit commit, GitTreeData tree) throws IOException {
 
         CommitBuilder builder = new CommitBuilder();
 
@@ -521,25 +531,42 @@ public abstract class AbstractRepositoryCleaner implements RepositoryCleaner {
 		
 	}
 
+	protected final Set<ObjectId> getParentCommitIds(RevCommit commit) {
+		Set<ObjectId> parentCommitIds = new LinkedHashSet<ObjectId>();
+
+		for (int i = 0; i < commit.getParentCount(); i++) {
+			ObjectId parentCommitId = commit.getParent(i).getId();
+			parentCommitIds.add(parentCommitId);
+		}
+
+		return parentCommitIds;
+	}
+	
 	/**
 	 * Default is to change parents that have been rewritten.
 	 * 
 	 * @param commit
 	 * @return altered list of parents for the commit given.
 	 */
+	
 	protected Set<ObjectId> processParents(RevCommit commit) {
+		
+		return processParents(getParentCommitIds(commit));
+	}
+	
+	protected Set<ObjectId> processParents(Set<ObjectId>originalParentCommitIds) {
 		
 		Set<ObjectId>newParents = new HashSet<ObjectId>();
 		
-		for (RevCommit parentCommit : commit.getParents()) {
+		for (ObjectId parentCommitId : originalParentCommitIds) {
 
 			ObjectId adjustedParentId = originalCommitIdToNewCommitIdMap
-					.get(parentCommit.getId());
+					.get(parentCommitId);
 
 			if (adjustedParentId != null)
 				newParents.add(adjustedParentId);
 			else
-				newParents.add(parentCommit.getId());
+				newParents.add(parentCommitId);
 		}
 		
 		return newParents;
@@ -557,7 +584,7 @@ public abstract class AbstractRepositoryCleaner implements RepositoryCleaner {
 		
 	}
 
-	protected boolean processCommitTree(RevCommit commit, GitTreeData tree) throws MissingObjectException, IncorrectObjectTypeException, CorruptObjectException, IOException {
+	protected boolean processCommitTree(RevCommit commit, GitTreeData tree) throws SkipOverCommitException, MissingObjectException, IncorrectObjectTypeException, CorruptObjectException, IOException {
 		// default is to not change the commit.
 		
 		// the commit might still be rewritten if its parent has changed.

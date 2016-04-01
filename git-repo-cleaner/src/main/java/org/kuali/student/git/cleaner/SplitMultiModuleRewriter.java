@@ -14,16 +14,21 @@
  */
 package org.kuali.student.git.cleaner;
 
+import java.io.File;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
+
 import org.eclipse.jgit.lib.CommitBuilder;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.revwalk.RevCommit;
+import org.kuali.student.git.cleaner.model.SkipOverCommitException;
 import org.kuali.student.git.model.GitRepositoryUtils;
 import org.kuali.student.git.model.tree.GitTreeData;
-
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Set;
 
 /**
  * In the case where a trunk contained many modules and we want to extract just the commits related to a specific module.
@@ -41,11 +46,9 @@ public class SplitMultiModuleRewriter extends org.kuali.student.git.cleaner.Abst
 			.getLogger(SplitMultiModuleRewriter.class);
 
 
-	private java.util.Map<ObjectId, SetObjectId> blobIdToReplacementContentMap = new java.util.HashMap<>();
-
-    private String targetPath;
-
-    private ObjectId rewrittenBranchHead = null;
+	private Map<ObjectId, Set<ObjectId>>skippedCommitIdToParentsCommitIds = new LinkedHashMap<ObjectId, Set<ObjectId>>();
+	
+	private String targetPath;
 
     /**
 	 *
@@ -82,7 +85,7 @@ public class SplitMultiModuleRewriter extends org.kuali.student.git.cleaner.Abst
 	}
 
     @Override
-    protected boolean processCommitTree(org.eclipse.jgit.revwalk.RevCommit commit, org.kuali.student.git.model.tree.GitTreeData tree) throws org.eclipse.jgit.errors.MissingObjectException, org.eclipse.jgit.errors.IncorrectObjectTypeException, org.eclipse.jgit.errors.CorruptObjectException, java.io.IOException {
+    protected boolean processCommitTree(org.eclipse.jgit.revwalk.RevCommit commit, org.kuali.student.git.model.tree.GitTreeData tree) throws org.eclipse.jgit.errors.MissingObjectException, org.eclipse.jgit.errors.IncorrectObjectTypeException, org.eclipse.jgit.errors.CorruptObjectException, java.io.IOException, SkipOverCommitException {
 
         if (super.commitToBranchMap.containsKey(commit.getId())) {
             // we are on a tag so don't do anything
@@ -96,6 +99,10 @@ public class SplitMultiModuleRewriter extends org.kuali.student.git.cleaner.Abst
                 return true;
             else {
                 // collapse this commit.
+            	
+				skippedCommitIdToParentsCommitIds.put(commit.getId(), getParentCommitIds(commit));
+				
+            	throw new SkipOverCommitException();
             }
 
         }
@@ -133,18 +140,26 @@ public class SplitMultiModuleRewriter extends org.kuali.student.git.cleaner.Abst
         }
 
         builder.setEncoding("UTF-8");
+        
+        Set<ObjectId> originalParentCommitIds = getParentCommitIds(commit);
+        
+        // translate for any skipped over cases
+        Set<ObjectId>skipCorrectedParentCommitIds = new LinkedHashSet<ObjectId>();
+        
+        for (ObjectId originalParentCommitId : originalParentCommitIds) {
+			
+        	skipCorrectedParentCommitIds.addAll(this.skippedCommitIdToParentsCommitIds.get(originalParentCommitId));
+        	
+		}
 
-        Set<ObjectId> newParents = processParents(commit);
+        Set<ObjectId> newParents = processParents(skipCorrectedParentCommitIds);
 
         builder.setParentIds(new ArrayList<>(newParents));
 
         return builder;
     }
 
-    @Override
-    protected void onNewCommit(org.eclipse.jgit.revwalk.RevCommit commit, org.eclipse.jgit.lib.ObjectId newCommitId) {
-        this.rewrittenBranchHead = newCommitId;
-    }
+    
 
     /* (non-Javadoc)
                  * @see org.kuali.student.git.cleaner.AbstractRepositoryCleaner#getFileNameSuffix()
