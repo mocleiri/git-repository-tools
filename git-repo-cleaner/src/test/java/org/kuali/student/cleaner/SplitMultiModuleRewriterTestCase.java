@@ -55,12 +55,12 @@ import org.slf4j.LoggerFactory;
 public class SplitMultiModuleRewriterTestCase extends AbstractGitRespositoryTestCase {
 
 	private static final Logger log = LoggerFactory.getLogger(SplitMultiModuleRewriterTestCase.class);
-	
+
 	/**
 	 * @param name
 	 */
 	public SplitMultiModuleRewriterTestCase() {
-		super("split-multi-module-rewriter");
+		super("split-multi-module-rewriter", true);
 	}
 
 	/* (non-Javadoc)
@@ -90,26 +90,55 @@ public class SplitMultiModuleRewriterTestCase extends AbstractGitRespositoryTest
 		ObjectId commitId = commit (inserter, trunk, "initial trunk commit");
 		
 		inserter.flush();
+
+        assertSmallBlobContents(trunk, "readme.txt", "test");
 		
 		GitRefUtils.createOrUpdateBranch(repo, "trunk", commitId);
-		
-		// create second commit with no change to my-module
-		trunk = new GitTreeData(new DummyGitTreeNodeInitializer());
 		
 		storeFile (inserter, trunk, "readme.txt", "changes to readme.txt");
 		
-		GitRefUtils.
-		commitId = commit (inserter, trunk, "initial trunk commit");
-		
+		commitId = commit (inserter, trunk, "changes only to readme.txt", commitId);
+
 		inserter.flush();
 		
 		GitRefUtils.createOrUpdateBranch(repo, "trunk", commitId);
-		
-		
-	}
+
+        org.eclipse.jgit.lib.ObjectId treeId = GitRepositoryUtils.findInCommit(repo, commitId, "src/modules/my-module");
+
+        GitTreeData release = new GitTreeData(new DummyGitTreeNodeInitializer());
+
+        release.setGitTreeObjectId(treeId);
+
+        commitId = commit (inserter, release, "make release", commitId);
+
+        inserter.flush();
+
+        GitRefUtils.createOrUpdateBranch(repo, "release", commitId);
+
+        inserter.release();
+
+        repo.getRefDatabase().refresh();
+
+
+    }
 	
 	@Test
-	public void testRepo() {
+	public void testSplitMultiModuleRewriterOnRepo() throws Exception {
+
+        org.kuali.student.git.cleaner.SplitMultiModuleRewriter rewriter = new org.kuali.student.git.cleaner.SplitMultiModuleRewriter();
+
+        java.util.List<String> args = new java.util.ArrayList<String>();
+        // <source git repository meta directory> <path to collapse> <git command path>
+
+        args.add(repo.getDirectory().getAbsolutePath());
+
+        args.add("src/modules/my-module");
+
+        rewriter.validateArgs(args);
+
+        rewriter.execute();
+
+        rewriter.close();
 		
 	}
 

@@ -14,14 +14,6 @@
  */
 package org.kuali.student.git.cleaner;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Set;
-
 import org.eclipse.jgit.lib.CommitBuilder;
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.ObjectId;
@@ -29,6 +21,13 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.kuali.student.git.cleaner.model.SkipOverCommitException;
 import org.kuali.student.git.model.GitRepositoryUtils;
 import org.kuali.student.git.model.tree.GitTreeData;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * In the case where a trunk contained many modules and we want to extract just the commits related to a specific module.
@@ -66,8 +65,8 @@ public class SplitMultiModuleRewriter extends org.kuali.student.git.cleaner.Abst
 	@Override
 	public void validateArgs(java.util.List<String> args) throws Exception {
 
-		if (args.size() != 2 && args.size() != 4) {
-			log.error("USAGE: <source git repository meta directory> <path to collapse> <git command path>");
+		if (args.size() != 2 && args.size() != 3) {
+			log.error("USAGE: <source git repository meta directory> <path to collapse> [<git command path>]");
 			log.error("\t<git repo meta directory> : the path to the meta directory of the source git repository");
             log.error("\t<path to collapse> : the path to a native git ");
 			log.error("\t<git command path> : the path to a native git ");
@@ -79,7 +78,8 @@ public class SplitMultiModuleRewriter extends org.kuali.student.git.cleaner.Abst
 
 		setBranchRefSpec(Constants.R_HEADS);
 
-        setExternalGitCommandPath(args.get(2).trim());
+        if (args.size() == 3)
+            setExternalGitCommandPath(args.get(2).trim());
 
         targetPath = args.get(1).trim();
 	}
