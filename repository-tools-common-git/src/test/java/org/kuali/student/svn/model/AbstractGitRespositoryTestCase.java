@@ -193,6 +193,7 @@ public abstract class AbstractGitRespositoryTestCase {
 
 		return update.update();
 	}
+	
 
 	protected ObjectId commit(ObjectInserter inserter, GitTreeData branch,
 			String commitMessage) throws IOException {
